@@ -20,9 +20,7 @@ def search_papers(
     date_to: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    搜索arXiv学术论文
-    
-    使用arXiv API搜索学术论文，支持关键词、分类、日期范围等过滤条件。
+    搜索arXiv学术论文,使用arXiv API搜索学术论文，支持关键词、分类、日期范围等过滤条件。
     
     :param query: 搜索查询关键词，例如："machine learning" 或 "transformer"
     :param max_results: 最大返回结果数量，默认10，最大100
@@ -66,40 +64,47 @@ def search_papers(
                     search_query = f"({search_query}) AND ({' OR '.join(category_queries)})"
         
         # 添加日期过滤（通过查询字符串实现）
-        if date_from or date_to:
-            date_query_parts = []
-            if date_from:
-                try:
-                    datetime.datetime.strptime(date_from, "%Y-%m-%d")
-                    date_query_parts.append(f"submittedDate:[{date_from}")
-                except ValueError:
-                    return {
-                        "success": False,
-                        "message": f"date_from格式错误，应为YYYY-MM-DD格式",
-                        "error": "Invalid date_from format"
-                    }
-            
-            if date_to:
-                try:
-                    datetime.datetime.strptime(date_to, "%Y-%m-%d")
-                    if date_query_parts:
-                        # 如果已经有起始日期，添加结束日期
-                        date_query_parts[0] = date_query_parts[0] + f" TO {date_to}]"
-                    else:
-                        date_query_parts.append(f"submittedDate:[* TO {date_to}]")
-                except ValueError:
-                    return {
-                        "success": False,
-                        "message": f"date_to格式错误，应为YYYY-MM-DD格式",
-                        "error": "Invalid date_to format"
-                    }
-            else:
-                # 只有起始日期，没有结束日期
-                if date_query_parts:
-                    date_query_parts[0] = date_query_parts[0] + " TO *]"
-            
-            if date_query_parts:
-                search_query = f"({search_query}) AND {date_query_parts[0]}"
+
+        date_query_parts = []
+        
+        if date_from:
+            try:
+                # 1. 验证并解析输入的 YYYY-MM-DD 格式
+                dt_from = datetime.datetime.strptime(date_from, "%Y-%m-%d")
+            except ValueError:
+                return {
+                    "success": False,
+                    "message": "date_from格式错误，应为YYYY-MM-DD格式",
+                    "error": "Invalid date_from format"
+                }
+        else:
+            dt_from = datetime.datetime.strptime("1991-01-01", "%Y-%m-%d")
+
+        if date_to:
+            try:
+                # 1. 验证并解析输入的 YYYY-MM-DD 格式
+                dt_to = datetime.datetime.strptime(date_to, "%Y-%m-%d")
+            except ValueError:
+                return {
+                    "success": False,
+                    "message": "date_to格式错误，应为YYYY-MM-DD格式",
+                    "error": "Invalid date_to format"
+                }
+        else:
+            dt_to = datetime.datetime.strptime(datetime.today(), "%Y-%m-%d")
+
+        # 2. 转换为 arXiv 需要的 YYYYMMDD235959 (当天23点59分59秒)
+        arxiv_date_from = dt_from.strftime("%Y%m%d000000")
+        date_query_parts.append(f"submittedDate:[{arxiv_date_from}")
+
+        arxiv_date_to = dt_to.strftime("%Y%m%d235959")
+        
+
+        date_query_parts[0] = date_query_parts[0] + f" TO {arxiv_date_to}]"
+
+        
+
+        search_query = f"({search_query}) AND {date_query_parts[0]}"
         
         # 设置排序
         sort_criterion_map = {
@@ -115,7 +120,7 @@ def search_papers(
         
         sort_criterion = sort_criterion_map.get(sort_by, arxiv.SortCriterion.Relevance)
         sort_order_enum = sort_order_map.get(sort_order, arxiv.SortOrder.Descending)
-        
+
         # 创建搜索对象
         search = arxiv.Search(
             query=search_query,
@@ -124,9 +129,11 @@ def search_papers(
             sort_order=sort_order_enum
         )
         
+
         # 执行搜索
-        client = arxiv.Client()
+        client = arxiv.Client(page_size=max_results,num_retries=2)
         results = list(client.results(search))
+
         
         # 处理结果
         papers = []

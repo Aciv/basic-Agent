@@ -25,10 +25,11 @@ from mcp_loader.mcp_client import MCPClient
 class OpenAiToolRegistry:
     """工具注册器"""
     
-    def __init__(self):
+    def __init__(self, timeout=30):
         self._tools: Dict[str, ToolInfo] = {}
         self.clients: Dict[str, MCPClient] = {}
-    
+        self.timeout = timeout
+
     def register(self, tool_info: ToolInfo):
         """注册工具"""
         self._tools[tool_info.name] = tool_info
@@ -279,17 +280,37 @@ def tool(
         
         # 注册工具
         _tool_registry.register(tool_info)
-        
+
+        from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            # 如果有参数模式，验证参数
+            # 1. 参数验证（如果有 schema）
             if schema_model is not None:
-                # 创建模型实例进行验证
                 model_instance = schema_model(**kwargs)
-                # 将验证后的参数传递回函数
                 validated_kwargs = model_instance.model_dump()
+            else:
+                validated_kwargs = kwargs
+
+            # 2. 如果没有设置超时，直接调用原函数
+            if _tool_registry.timeout is None:
                 return func(*args, **validated_kwargs)
-            return func(*args, **kwargs)
+
+            # 3. 使用线程池执行，并设置超时
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(func, *args, **validated_kwargs)
+                try:
+                    return future.result(timeout=_tool_registry.timeout)
+                except FuturesTimeoutError:
+                    # 超时后返回标准失败信息
+                    return {
+                        "success": False,
+                        "message": f"Tool execution timed out after {_tool_registry.timeout} seconds",
+                        "error": "TimeoutError"
+                    }
+                except Exception as e:
+                    # 其他异常可以选择直接抛出，或包装为错误字典
+                    # 这里选择抛出，保持与原函数行为一致
+                    raise e
         
         # 添加工具信息到包装函数
         wrapper.tool_info = tool_info

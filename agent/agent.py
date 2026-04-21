@@ -33,6 +33,7 @@ class agent:
         self.tools_manager = get_tool_registry()
         self.context = Context(system_prompt)
         self.system_prompt = system_prompt
+        self.max_epoch = 10
 
     async def close(self):
         await self.tools_manager.cleanup_all()
@@ -51,8 +52,9 @@ class agent:
         response_message = response["choices"][0]["message"]
 
         print_message(tmp_context.message, response, 'p')
-
-        while response_message.get("tool_calls"):
+        step = 0
+        while response_message.get("tool_calls") and step < self.max_epoch:
+            step += 1
             # 执行工具调用
             tool_results = await self._execute_tool_calls(
                 response_message["tool_calls"]

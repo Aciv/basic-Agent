@@ -10,7 +10,13 @@ from typing import Optional, Dict, Any
 from pathlib import Path
 
 from tool.tools import tool
-
+from datetime import datetime
+@tool
+def get_time():
+    """
+    获取当前事件，在涉及时间相关操作一定要执行这个工具获取真正的时间
+    """
+    return str(datetime.now())
 
 @tool
 def write_file(

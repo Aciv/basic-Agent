@@ -18,7 +18,7 @@ from mcp_loader.mcp_register import get_mcp_server
 from memory.system_prompt import make_system_prompt
 from schedule.timer import get_timer, start_timer_thread
 from schedule.schedule_tools import Task_type
-
+import addition_tool
 
 
 if __name__ == "__main__":
