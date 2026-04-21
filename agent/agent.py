@@ -1,26 +1,19 @@
 from agent.calls import OpenAIClient
-from typing import Dict, List, Any, Optional
+from typing import Dict, List
 from memory.memory import Context, Message
 
-
-
-
-from tool.tools import get_tool_registry, tool
-
-from typing import Literal, Optional 
+from tool.tools import get_tool_registry
 import json
-
-
-from btf_print import LogPrinter,logging
+from btf_print import LogPrinter
 
 
 printer = LogPrinter()
 
 
 def print_message(Message, response, splt = '-'):
-    logging.info("直接测试")
+  
     printer.print(splt*50)
-    printer.print(Message[-1])
+    printer.print(Message)
     printer.print("---------------------- response is ----------------------")
     printer.print(response)
     printer.print(splt*50)
@@ -38,136 +31,65 @@ class agent:
     async def close(self):
         await self.tools_manager.cleanup_all()
 
-    async def response_with_empty_context(self, usr_msg):
-
-        tmp_context = Context(self.system_prompt)
-
-        tmp_context.append(Message(role="user", content=usr_msg))
-
-
-
-        response = self.client.create_chat_completion(tmp_context.message,
-                        tools=self.tools_manager.get_tool_definitions())
-
-        response_message = response["choices"][0]["message"]
-
-        print_message(tmp_context.message, response, 'p')
-        step = 0
-        while response_message.get("tool_calls") and step < self.max_epoch:
-            step += 1
-            # 执行工具调用
-            tool_results = await self._execute_tool_calls(
-                response_message["tool_calls"]
-            )
-            
-            # 添加工具响应
-            for tool_call, result in tool_results:
-                tmp_context.append(
-                    Message(
-                        role="assistant",
-                        tool_calls=[
-                            {
-                                'type': 'function', 
-                                'id': f'{tool_call["id"]}', 
-                                'function': {'name': f'{tool_call["function"]["name"]}', 
-                                            'arguments': tool_call["function"]["arguments"] }
-                            }
-                        ]
-                    )
-                )
-                from mcp import types
-                format_result = {}
-                if isinstance(result, list) and isinstance(result[0], types.TextContent):
-                    for content_item in result:
-                        if isinstance(content_item, types.TextContent):
-                            format_result = content_item.model_dump()
-                else:
-                    format_result = result
-
-
-                tmp_context.append(
-                    Message(
-                        role="tool",
-                        content=json.dumps(format_result),
-                        tool_call_id=tool_call["id"]
-                    )
-                )
-
-
-            response = self.client.create_chat_completion(tmp_context.message,
-                tools=self.tools_manager.get_tool_definitions())
-
-
-            print_message(tmp_context.message, response, 't')
-
-            tmp_context.append(Message(role="assistant", content=response_message["content"]))
-            response_message = response["choices"][0]["message"]
-        
-        return response_message["content"]
     
-    async def response(self, usr_msg):
+    
+    async def response(self, usr_msg, system_prompt: Message | None = None):
+        # 记录用户输入
+        if system_prompt is None:
+            now_context = self.context
+        else:
+            now_context = Context(system_prompt)
 
-        self.context.append(Message(role="user", content=usr_msg))
+        now_context.append(Message(role="user", content=usr_msg))
 
-
-
-        response = self.client.create_chat_completion(self.context.message,
-                        tools=self.tools_manager.get_tool_definitions())
-
-        response_message = response["choices"][0]["message"]
-
-        print_message(self.context.message, response, 'p')
-
-        while response_message.get("tool_calls"):
-            # 执行工具调用
-            tool_results = await self._execute_tool_calls(
-                response_message["tool_calls"]
+        step = 0
+        while step < self.max_epoch:
+            # 获取模型响应
+            response = self.client.create_chat_completion(
+                now_context.message, # self.context.message 返回完整列表
+                tools=self.tools_manager.get_tool_definitions()
             )
             
-            # 添加工具响应
-            for tool_call, result in tool_results:
-                self.context.append(
-                    Message(
-                        role="assistant",
-                        tool_calls=[
-                            {
-                                'type': 'function', 
-                                'id': f'{tool_call["id"]}', 
-                                'function': {'name': f'{tool_call["function"]["name"]}', 
-                                             'arguments': tool_call["function"]["arguments"] }
-                            }
-                        ]
-                    )
-                )
-                from mcp import types
-                format_result = {}
-                if isinstance(result, list) and isinstance(result[0], types.TextContent):
-                    for content_item in result:
-                        if isinstance(content_item, types.TextContent):
-                            format_result = content_item.model_dump()
-                else:
-                    format_result = result
-
-
-                self.context.append(
-                    Message(
-                        role="tool",
-                        content=json.dumps(format_result),
-                        tool_call_id=tool_call["id"]
-                    )
-                )
-
-
-            response = self.client.create_chat_completion(self.context.message,
-                tools=self.tools_manager.get_tool_definitions())
-
-
-            print_message(self.context.message, response, 't')
-
-            self.context.append(Message(role="assistant", content=response_message["content"]))
             response_message = response["choices"][0]["message"]
-        
-        return response_message["content"]
+            # 将模型的消息存入上下文
+            now_context.append(Message(
+                role="assistant",
+                content=response_message.get("content") or "",
+                tool_calls=response_message.get("tool_calls")
+            ))
+
+            # 如果没有工具调用，直接跳出循环
+            if not response_message.get("tool_calls"):
+                break
+
+            # 执行工具调用
+            tool_results = await self._execute_tool_calls(response_message["tool_calls"])
+            
+            # 逐个添加工具执行结果
+            for tool_call,  result in tool_results:
+                # MCP 格式处理逻辑
+                from mcp import types
+                format_result = result
+                if isinstance(result, list) and len(result) > 0 and isinstance(result[0], types.TextContent):
+                    format_result = result[0].model_dump()
+                
+                now_context.append(Message(
+                    role="tool",
+                    content=json.dumps(format_result),
+                    tool_call_id=tool_call["id"]
+                ))
+            
+            step += 1
+            print_message(now_context.message, response, 't') # 打印当前轨迹
+
+        # 超过最大轮数强制总结
+        if step >= self.max_epoch and response_message.get("tool_calls"):
+            now_context.append(Message(role="system", content="已达到工具调用上限，请根据现有信息直接回答。"))
+            final_response = self.client.create_chat_completion(now_context.message)
+            response_message = final_response["choices"][0]["message"]
+            now_context.append(Message(role="assistant", content=response_message["content"]))
+
+        return response_message.get("content", "")
 
 
     async def _execute_tool_calls(self, tool_calls: List[Dict]) -> List[tuple]:
@@ -190,9 +112,3 @@ class agent:
                 results.append(f"tool {tool_name} not exist")
             
         return results
-
-
-
-
-
-

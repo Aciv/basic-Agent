@@ -6,10 +6,10 @@ import logging
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(message)s',            # 只输出消息本身，不额外添加时间戳等
+    format='%(message)s',            
     handlers=[
-        logging.FileHandler('log/output.log', 'w', encoding='utf-8'),  # 输出到文件
-        # logging.StreamHandler()                               # 同时输出到控制台
+        logging.FileHandler('log/output.log', 'w', encoding='utf-8'),  
+        # logging.StreamHandler()                               
     ]
 )
 
@@ -19,7 +19,7 @@ from memory.system_prompt import make_system_prompt
 from schedule.timer import get_timer, start_timer_thread
 from schedule.schedule_tools import Task_type
 import addition_tool
-
+from memory.system_prompt import make_system_prompt
 
 if __name__ == "__main__":
 
@@ -47,7 +47,8 @@ if __name__ == "__main__":
             exit(0)
 
         # 初始化agent
-        aagent = agent(make_system_prompt(system_context_path, skills_dir), 
+        system_prompt = make_system_prompt(system_context_path, skills_dir)
+        aagent = agent(system_prompt, 
                     key, base_url, model)
         
         # 加载MCP服务器
@@ -87,8 +88,10 @@ if __name__ == "__main__":
                             print(out_put)
                             print("user: ", end="", flush=True)
                         else:
-                            await aagent.response_with_empty_context(prompt)
-                        
+
+                            await aagent.response(prompt, system_prompt)
+                            print("user: ", end="", flush=True)
+
                         if callback_function is not None:
                             callback_function()
 

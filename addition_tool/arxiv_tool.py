@@ -131,7 +131,7 @@ def search_papers(
         
 
         # 执行搜索
-        client = arxiv.Client(page_size=max_results,num_retries=2)
+        client = arxiv.Client(page_size=100,num_retries=2)
         results = list(client.results(search))
 
         
@@ -202,7 +202,7 @@ def get_paper_by_id(paper_id: str) -> Dict[str, Any]:
             }
         
         # 创建客户端
-        client = arxiv.Client()
+        client = arxiv.Client(page_size=100,num_retries=2)
         
         # 搜索特定论文
         search = arxiv.Search(id_list=[paper_id])
@@ -283,7 +283,7 @@ def search_by_author(author_name: str, max_results: int = 10) -> Dict[str, Any]:
         )
         
         # 执行搜索
-        client = arxiv.Client()
+        client = arxiv.Client(page_size=100,num_retries=2)
         results = list(client.results(search))
         
         # 处理结果

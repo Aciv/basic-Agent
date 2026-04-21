@@ -1,12 +1,8 @@
-
-
 from typing import Dict, List, Any, Optional
-
 import openai
-
 from memory.memory import Message
 
-# ==================== OpenAI 客户端 =====
+
 
 class OpenAIClient:
     """OpenAI LLM 客户端封装"""

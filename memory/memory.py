@@ -23,4 +23,6 @@ class Context:
     def message(self):
         return self.message_list
     
-    
+class memory:
+    def __init__(self, path):
+        pass
