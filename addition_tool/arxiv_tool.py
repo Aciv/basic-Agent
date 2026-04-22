@@ -91,7 +91,7 @@ def search_papers(
                     "error": "Invalid date_to format"
                 }
         else:
-            dt_to = datetime.datetime.strptime(datetime.today(), "%Y-%m-%d")
+            dt_to = datetime.datetime.strptime(str(datetime.date.today()), "%Y-%m-%d")
 
         # 2. 转换为 arXiv 需要的 YYYYMMDD235959 (当天23点59分59秒)
         arxiv_date_from = dt_from.strftime("%Y%m%d000000")

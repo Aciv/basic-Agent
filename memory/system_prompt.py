@@ -15,10 +15,8 @@ def make_system_prompt(context_path, skills_dir):
     skill_prompt = load_skills(skills_dir)
 
 
-    system_message = Message(
-        role="system",
-        content="\n".join([content, skill_prompt])
-    )
+    system_message = content="\n".join([content, skill_prompt])
+    
 
 
     return system_message

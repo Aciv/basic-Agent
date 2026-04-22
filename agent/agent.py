@@ -1,6 +1,6 @@
 from agent.calls import OpenAIClient
-from typing import Dict, List
-from memory.memory import Context, Message
+from typing import Dict, List, Optional
+from memory.memory import Context, Message, Memory
 
 from tool.tools import get_tool_registry
 import json
@@ -21,32 +21,39 @@ def print_message(Message, response, splt = '-'):
 
 import inspect
 class agent:
-    def __init__(self, system_prompt : Message, api_key: str, base_url : str, model: str = "qwen-plus", ):
+    def __init__(self, api_key: str, base_url : str, model: str = "qwen-plus",
+                 load_path: Optional[str] = None, system_prompt: Optional[str] = None, context_name: Optional[str] = None):
         self.client = OpenAIClient(api_key, base_url, model)
         self.tools_manager = get_tool_registry()
-        self.context = Context(system_prompt)
+
         self.system_prompt = system_prompt
-        self.max_epoch = 10
+
+        self.memory = Memory("history", load_path, system_prompt, context_name)
+    
+
+        
+        self.max_epoch = 20
 
     async def close(self):
+        if not self.memory.save_all():
+            print("save failed")
         await self.tools_manager.cleanup_all()
 
     
     
-    async def response(self, usr_msg, system_prompt: Message | None = None):
-        # 记录用户输入
-        if system_prompt is None:
-            now_context = self.context
-        else:
-            now_context = Context(system_prompt)
+    async def response(self, usr_msg: str, context_id: str):
 
+        now_context = self.memory.get_context(context_id)
+        if now_context is None:
+            return "错误id"
+        
         now_context.append(Message(role="user", content=usr_msg))
 
         step = 0
         while step < self.max_epoch:
             # 获取模型响应
             response = self.client.create_chat_completion(
-                now_context.message, # self.context.message 返回完整列表
+                now_context.messages, # self.context.message 返回完整列表
                 tools=self.tools_manager.get_tool_definitions()
             )
             
@@ -60,6 +67,7 @@ class agent:
 
             # 如果没有工具调用，直接跳出循环
             if not response_message.get("tool_calls"):
+                print_message(now_context.messages, response, 'p') 
                 break
 
             # 执行工具调用
@@ -80,15 +88,15 @@ class agent:
                 ))
             
             step += 1
-            print_message(now_context.message, response, 't') # 打印当前轨迹
+            print_message(now_context.messages, response, 't') # 打印当前轨迹
 
         # 超过最大轮数强制总结
         if step >= self.max_epoch and response_message.get("tool_calls"):
             now_context.append(Message(role="system", content="已达到工具调用上限，请根据现有信息直接回答。"))
-            final_response = self.client.create_chat_completion(now_context.message)
+            final_response = self.client.create_chat_completion(now_context.messages)
             response_message = final_response["choices"][0]["message"]
             now_context.append(Message(role="assistant", content=response_message["content"]))
-
+        
         return response_message.get("content", "")
 
 

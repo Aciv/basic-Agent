@@ -26,10 +26,13 @@ if __name__ == "__main__":
 
     def input_thread(q, semaphore):
         """用户输入线程"""
-        while True:
-            msg = input("user: ")
-            q.put(msg)
-            semaphore.acquire()
+        try:
+            while True:
+                msg = input("user: ")
+                q.put(msg)
+                semaphore.acquire()
+        except KeyboardInterrupt:
+            print("\n用户输入中断，正在停止...")
 
     async def main(config_path):
         import json
@@ -47,9 +50,10 @@ if __name__ == "__main__":
             exit(0)
 
         # 初始化agent
+        context_name = "test"
         system_prompt = make_system_prompt(system_context_path, skills_dir)
-        aagent = agent(system_prompt, 
-                    key, base_url, model)
+        aagent = agent(key, base_url, model, 
+                    system_prompt=system_prompt, context_name="test")
         
         # 加载MCP服务器
         await get_mcp_server(mcp_path)
@@ -68,59 +72,40 @@ if __name__ == "__main__":
         )
         input_thread_instance.start()
 
+        try:
+            while True:
+                try:
+                    usr_msg = input_q.get(timeout=0.1)
+                    
+                    if usr_msg == 'quit':
+                        print("[系统] 正在退出...")
+                        break
 
-        while True:
-            try:
-                # 处理定时任务回调
-                while True:
-                    callback, args, kwargs = timer.ready_queue.get_nowait()
-                    print("\n[定时任务] 执行回调函数")
-                    try:
-                        result = callback(*args, **kwargs)
-                        task_name = result.get("task_name")
-                        task_type = result.get("task_type")
-                        prompt = result.get("user_prompt", "")
-                        callback_function = result.get("callback_function")
-                        if task_type == "main_agent":
-                            out_put = await aagent.response(prompt)
-                            print("user: ", prompt)
-                            print("Ai: ")
-                            print(out_put)
-                            print("user: ", end="", flush=True)
-                        else:
+                    # 处理agent响应
+                    print("thingking~")
+                    out_put = await aagent.response(usr_msg, context_name)
+                    print("Ai: ")
+                    print(out_put)
+                    input_semaphore.release()
 
-                            await aagent.response(prompt, system_prompt)
-                            print("user: ", end="", flush=True)
+                except queue.Empty:
+                    pass
 
-                        if callback_function is not None:
-                            callback_function()
+                except Exception as e:
+                    print(f"[系统错误] {e}")
+        except asyncio.CancelledError:
+                print("\n[系统] 收到退出信号，正在清理...")
+        except Exception as e:
+            print(f"agent执行错误 {e}")
+        finally:
+            print("clossing")
+            await aagent.close()
 
-                    except Exception as e:
-                        print(f"[定时任务] 执行出错: {e}")
 
-            except queue.Empty:
-                pass   
-            
-            try:
-                usr_msg = input_q.get(timeout=0.1)
-                
-                if usr_msg == 'quit':
-                    print("[系统] 正在退出...")
-                    break
 
-                # 处理agent响应
-                print("thingking~")
-                out_put = await aagent.response(usr_msg)
-                print("Ai: ")
-                print(out_put)
-                input_semaphore.release()
-
-            except queue.Empty:
-                pass
-            except Exception as e:
-                print(f"[系统错误] {e}")
-
-        await aagent.close()
+        
         print("[系统] 程序已退出")
-
-    asyncio.run(main("config.json"))
+    try:
+        asyncio.run(main("config.json"))
+    except KeyboardInterrupt:
+        print("\n用户中断，正在停止...")
