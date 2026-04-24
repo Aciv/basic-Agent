@@ -230,7 +230,7 @@ class Memory(Base_Memory):
         # 加载已存在的记忆
         if load_path is not None:
             self.load(load_path)
-        else:
+        elif context_name is not None:
             self.create_context(system_prompt, context_name)
    
     

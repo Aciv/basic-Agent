@@ -4,27 +4,23 @@
 """
 
 import time
-import json
-from typing import Dict, Any, Callable, Optional, Union
-from pathlib import Path
-from enum import Enum
+
+from typing import Dict, Any
 
 from tool.tools import tool
-from schedule.timer import get_timer, start_timer_thread
 
+from timer_schedule.timer import get_timer
+from IO.channel_base import TransportMessage
 
-class Task_type(str, Enum):  # 继承 str 很重要,便于 JSON 交互
-    SUB_AGENT = "sub_agent"
-    MAIN_AGENT = "main_agent"
 
 
 @tool
-def schedule_task(
+async def schedule_task(
     delay_seconds: float,
     task_name: str,
     prompt: str, 
-    task_type: Task_type = Task_type.SUB_AGENT,
-    callback_function: Optional[str] = None
+    context_id: str = "Stdin",
+    output_id: str = "Stdout",
 ) -> Dict[str, Any]:
     """
     添加定时任务工具,在指定的延迟后执行任务
@@ -32,26 +28,24 @@ def schedule_task(
     :param delay_seconds: 延迟时间（秒）
     :param task_name: 任务名称
     :param prompt: 输入给agent的user prompt
-    :param task_type: 任务类型,目前支持 "sub_agent"（使用全新上下文调用）或 "main_agent"（在当前上下文调用）
-    :param callback_function: 回调函数,默认为无
+    :param context_id : 输入的上下文id，默认为 "Stdin"
+    :param output_id : 输出的channel ID
     :return: 操作结果信息
     """
     try:
-        # 确保定时器线程已启动
-        start_timer_thread()
+
         
         timer = get_timer()
         
-        # 准备任务数据
 
         
         # 创建任务记录
         task_record = {
             "name": task_name,
-            "type": task_type,
             "user_prompt": prompt,
+            "context_id": context_id,
+            "output_id": output_id,
             "scheduled_time": time.time() + delay_seconds,
-            "callback_function": callback_function
         }
 
         '''
@@ -71,16 +65,13 @@ def schedule_task(
         '''
 
 
-
-        def function_callback():
-            return {
-                        "task_name": task_name,
-                        "task_type": task_type,
-                        "user_prompt": prompt,
-                        "callback_function": callback_function
-                    }
+        message = TransportMessage(
+            context_id=context_id,
+            output_id=output_id,
+            content=prompt
+        )
         
-        timer.add_task(delay_seconds, task_name, function_callback)
+        await timer.add_task(delay_seconds, task_name, message)
 
 
         
@@ -90,7 +81,6 @@ def schedule_task(
             "task_name": task_name,
             "delay_seconds": str(delay_seconds),
             "scheduled_time": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(task_record['scheduled_time'])),
-            "task_type": task_type,
             "user_prompt": prompt
         }
         
@@ -104,12 +94,11 @@ def schedule_task(
 @tool
 def list_scheduled_tasks() -> Dict[str, Any]:
     """
-    列出当前的定时任务，返回data为任务元组(执行时间, 任务名, 任务id, 回调函数, args, kwargs)组成的列表
+    列出当前的定时任务，返回data为任务元组(执行时间, 任务名, 任务id, 执行信息)组成的列表
     
     :return: 定时任务列表信息
     """
-    # 确保定时器线程已启动
-    start_timer_thread()
+
     
     timer = get_timer()
     lines = [" ".join(str(x) for x in tup) for tup in timer.get_info()]
@@ -121,20 +110,19 @@ def list_scheduled_tasks() -> Dict[str, Any]:
 
 
 @tool
-def cancel_scheduled_task(task_id: int) -> Dict[str, Any]:
+async def cancel_scheduled_task(task_id: int) -> Dict[str, Any]:
     """
     取消指定的定时任务
     
     :param task_id: 要取消的任务的id,由list_scheduled_tasks获得
     :return: 操作结果信息
     """
-    # 确保定时器线程已启动
-    start_timer_thread()
+
     
     timer = get_timer()
 
     return {
-            "success": timer.cancel_task(task_id)
+            "success": await timer.cancel_task(task_id)
     }
 
         
@@ -142,8 +130,3 @@ def cancel_scheduled_task(task_id: int) -> Dict[str, Any]:
 
 
 
-__all__ = [
-    'schedule_task',
-    'list_scheduled_tasks',
-    'cancel_scheduled_task',
-]

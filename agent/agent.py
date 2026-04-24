@@ -20,7 +20,7 @@ def print_message(Message, response, splt = '-'):
 
 
 import inspect
-class agent:
+class Agent:
     def __init__(self, api_key: str, base_url : str, model: str = "qwen-plus",
                  load_path: Optional[str] = None, system_prompt: Optional[str] = None, context_name: Optional[str] = None):
         self.client = OpenAIClient(api_key, base_url, model)
@@ -67,7 +67,7 @@ class agent:
 
             # 如果没有工具调用，直接跳出循环
             if not response_message.get("tool_calls"):
-                print_message(now_context.messages, response, 'p') 
+                # print_message(now_context.messages, response, 'p') 
                 break
 
             # 执行工具调用

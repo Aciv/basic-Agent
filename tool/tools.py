@@ -281,9 +281,11 @@ def tool(
         # 注册工具
         _tool_registry.register(tool_info)
 
-        from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
+        timeout_seconds = _tool_registry.timeout
+        if timeout_seconds is None:
+            timeout_seconds = 0
+        import asyncio
+        async def wrapper(*args, **kwargs):
             # 1. 参数验证（如果有 schema）
             if schema_model is not None:
                 model_instance = schema_model(**kwargs)
@@ -291,30 +293,31 @@ def tool(
             else:
                 validated_kwargs = kwargs
 
-            # 2. 如果没有设置超时，直接调用原函数
-            if _tool_registry.timeout is None:
-                return func(*args, **validated_kwargs)
 
-            # 3. 使用线程池执行，并设置超时
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(func, *args, **validated_kwargs)
-                try:
-                    return future.result(timeout=_tool_registry.timeout)
-                except FuturesTimeoutError:
-                    # 超时后返回标准失败信息
-                    return {
-                        "success": False,
-                        "message": f"Tool execution timed out after {_tool_registry.timeout} seconds",
-                        "error": "TimeoutError"
-                    }
-                except Exception as e:
-                    # 其他异常可以选择直接抛出，或包装为错误字典
-                    # 这里选择抛出，保持与原函数行为一致
-                    raise e
-        
-        # 添加工具信息到包装函数
+            # 统一用 asyncio.wait_for 包装
+            try:
+                if inspect.iscoroutinefunction(func):
+                    return await asyncio.wait_for(
+                        func(*args, **validated_kwargs),
+                        timeout=timeout_seconds
+                    )
+                else:
+                    # 同步函数在线程池中执行，再用 wait_for 限制总时间
+                    return await asyncio.wait_for(
+                        asyncio.to_thread(func, *args, **validated_kwargs),
+                        timeout=timeout_seconds
+                    )
+            except asyncio.TimeoutError:
+                return {
+                    "success": False,
+                    "message": f"Tool execution timed out after {timeout_seconds} seconds",
+                    "error": "TimeoutError"
+                }
+            except Exception as e:
+                # 保持原异常抛出
+                raise e
+
         wrapper.tool_info = tool_info
-        
         return wrapper
     
     # 处理 @tool 不带括号的情况

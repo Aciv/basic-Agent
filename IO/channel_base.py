@@ -7,7 +7,6 @@ from dataclasses import dataclass, field
 
 @dataclass
 class TransportMessage:
-    """工具信息类"""
     context_id: str
     output_id: str
     content: Optional[str] = None
@@ -17,11 +16,15 @@ class TransportMessage:
 class InputChannel(ABC):
     """输入通道基类：从某个数据源读取原始数据，放入输入队列"""
 
-    def __init__(self, input_queue: asyncio.Queue, output_name: Optional[str] = "Stdout", error_name: Optional[str] = "Stdout", name: str = "InputChannel", ):
+    def __init__(self, input_queue: asyncio.Queue, 
+                output_name: Optional[str] = "Stdout", error_name: Optional[str] = "Stdout", name: str = "InputChannel",
+                semaphore: Optional[asyncio.Semaphore] = None):
         self.input_queue = input_queue
         self.name = name
         self.output_name = output_name
         self.error_output = error_name
+
+        self.semaphore = semaphore
 
         self._task: Optional[asyncio.Task] = None
         self._running = False
@@ -36,7 +39,11 @@ class InputChannel(ABC):
                 data = await self._read()
                 if data is None:          
                     continue
+
                 await self.input_queue.put(data)
+
+                if self.semaphore is not None:
+                    await self.semaphore.acquire()
             except (asyncio.CancelledError,EOFError, KeyboardInterrupt):
                 self._running = False
             except Exception as e:
@@ -44,7 +51,8 @@ class InputChannel(ABC):
                         context_id=self.name,
                         output_id=self.error_output,
                         content=str(e)))
-
+    def get_name(self) -> str:
+        return self.name
     def start(self):
         if self._running:
             return
@@ -60,14 +68,14 @@ class InputChannel(ABC):
 
 
 class OutputChannel(ABC):
-    """输出通道基类：从输出队列取出消息并输出到目标"""
-
-    def __init__(self, output_queue: asyncio.Queue, name: str = "OutputChannel"):
+    def __init__(self, output_queue: asyncio.Queue, name: str = "OutputChannel",
+                 semaphore: Optional[asyncio.Semaphore] = None):
         self.output_queue = output_queue
         self.name = name
+        self.semaphore = semaphore
         self._task: Optional[asyncio.Task] = None
         self._running = False
-
+        
     @abstractmethod
     async def _write(self, data: Any) -> None:
         raise NotImplementedError
@@ -75,11 +83,13 @@ class OutputChannel(ABC):
     async def _run(self):
         while self._running:
             try:
-                # 超时设置让停止时能及时退出
                 msg = await asyncio.wait_for(self.output_queue.get(), timeout=0.1)
                 
                 await self._write(msg)
                 self.output_queue.task_done()
+                if self.semaphore is not None:
+                    self.semaphore.release()
+
             except asyncio.TimeoutError:
                 continue
             except (asyncio.CancelledError,EOFError, KeyboardInterrupt):
@@ -87,6 +97,9 @@ class OutputChannel(ABC):
             except Exception as e:
                 print(f"[{self.name}] 输出错误: {e}", file=sys.stderr)
 
+    def get_name(self) -> str:
+        return self.name
+    
     def start(self):
         if self._running:
             return
