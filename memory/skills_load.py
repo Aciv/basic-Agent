@@ -109,7 +109,7 @@ def load_skills(skills_dir: str) -> str:
     skill_files = find_skill_files(skills_dir)
     
     if not skill_files:
-        return f"No SKILL.md files found in '{skills_dir}'."
+        return ""
     
     # 收集所有skill信息
     skills_info = []

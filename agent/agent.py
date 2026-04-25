@@ -1,6 +1,6 @@
 from agent.calls import OpenAIClient
 from typing import Dict, List, Optional
-from memory.memory import Context, Message, Memory
+from memory.memory import Message, Memory
 
 from tool.tools import get_tool_registry
 import json
@@ -11,7 +11,7 @@ printer = LogPrinter()
 
 
 def print_message(Message, response, splt = '-'):
-  
+    pass
     printer.print(splt*50)
     printer.print(Message)
     printer.print("---------------------- response is ----------------------")
@@ -41,7 +41,7 @@ class Agent:
 
     
     
-    async def response(self, usr_msg: str, context_id: str):
+    async def response(self, usr_msg: str, context_id: str, thinking: bool = False, thinking_effor: str = "High"):
 
         now_context = self.memory.get_context(context_id)
         if now_context is None:
@@ -53,18 +53,27 @@ class Agent:
         while step < self.max_epoch:
             # 获取模型响应
             response = self.client.create_chat_completion(
-                now_context.messages, # self.context.message 返回完整列表
-                tools=self.tools_manager.get_tool_definitions()
+                messages=now_context.messages, # self.context.message 返回完整列表
+                tools=self.tools_manager.get_tool_definitions(),
+                thinking=thinking,
+                thinking_effor=thinking_effor
             )
             
             response_message = response["choices"][0]["message"]
-            # 将模型的消息存入上下文
-            now_context.append(Message(
-                role="assistant",
-                content=response_message.get("content") or "",
-                tool_calls=response_message.get("tool_calls")
-            ))
 
+            msg = self.get_Message(response_message)
+            print(msg)
+            
+            now_context.append(Message(**msg))
+
+            '''
+            now_context.append(Message(
+                role=response_message.get("role") or "assistant",
+                content=response_message.get("content") or "",
+                tool_calls=response_message.get("tool_calls"),
+                reasoning_content=response_message.get("reasoning_content"),
+            ))
+            '''
             # 如果没有工具调用，直接跳出循环
             if not response_message.get("tool_calls"):
                 # print_message(now_context.messages, response, 'p') 
@@ -93,13 +102,39 @@ class Agent:
         # 超过最大轮数强制总结
         if step >= self.max_epoch and response_message.get("tool_calls"):
             now_context.append(Message(role="system", content="已达到工具调用上限，请根据现有信息直接回答。"))
-            final_response = self.client.create_chat_completion(now_context.messages)
+            final_response = self.client.create_chat_completion(
+                messages=now_context.messages,                 
+                thinking=thinking,
+                thinking_effor=thinking_effor)
             response_message = final_response["choices"][0]["message"]
-            now_context.append(Message(role="assistant", content=response_message["content"]))
-        
+            msg = self.get_Message(response_message)
+            now_context.append(Message(**msg))
+
         return response_message.get("content", "")
 
+    def get_Message(self, raw_message):
+        '''
+        role = raw_message.get("role") or "assistant",
+        content = raw_message.get("content") or ""
+        tool_calls = raw_message.get("tool_calls") or None   
+        '''
+        reasoning = raw_message.get("reasoning_content")  
 
+        msg_kwargs = {
+            "role": raw_message.get("role") or "assistant",
+            "content": raw_message.get("content") or "",
+            "tool_calls": raw_message.get("tool_calls") or None, 
+            "annotations": raw_message.get("annotations") or None, 
+            "audio": raw_message.get("audio") or None,
+            "function_call": raw_message.get("function_call") or None,            
+        }
+
+
+        if reasoning is not None:
+            msg_kwargs["reasoning_content"] = reasoning
+        return msg_kwargs
+    
+    
     async def _execute_tool_calls(self, tool_calls: List[Dict]) -> List[tuple]:
         """执行工具调用"""
         results = []

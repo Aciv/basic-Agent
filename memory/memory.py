@@ -9,11 +9,16 @@ from abc import ABC, abstractmethod
 @dataclass
 class Message:
     """对话消息结构"""
-    role: str  # "system", "user", "assistant", "tool"
+    role: Optional[str] = None  # "system", "user", "assistant", "tool"
     content: Optional[str] = None
     name: Optional[str] = None
     tool_calls: Optional[List[Dict]] = None
     tool_call_id: Optional[str] = None
+    reasoning_content: Optional[str] = None
+    refusal: Optional[str] = None,
+    annotations: Optional[str] = None,
+    audio: Optional[str] = None,
+    function_call: Optional[str] = None,
     
     def to_dict(self) -> Dict:
         """转换为字典格式"""
