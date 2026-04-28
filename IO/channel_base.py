@@ -87,7 +87,7 @@ class OutputChannel(ABC):
                 
                 await self._write(msg)
                 self.output_queue.task_done()
-                if self.semaphore is not None:
+                if self.semaphore is not None and msg.output_id == self.name:
                     self.semaphore.release()
 
             except asyncio.TimeoutError:

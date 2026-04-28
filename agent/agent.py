@@ -1,7 +1,8 @@
 from agent.calls import OpenAIClient
 from typing import Dict, List, Optional
 from memory.memory import Message, Memory
-
+from IO.channel_base import TransportMessage
+import asyncio
 from tool.tools import get_tool_registry
 import json
 from btf_print import LogPrinter
@@ -11,7 +12,7 @@ printer = LogPrinter()
 
 
 def print_message(Message, response, splt = '-'):
-    pass
+    return
     printer.print(splt*50)
     printer.print(Message)
     printer.print("---------------------- response is ----------------------")
@@ -24,7 +25,9 @@ class Agent:
     def __init__(self, api_key: str, base_url : str, model: str = "qwen-plus",
                 load_path: Optional[str] = None, 
                 system_prompt: Optional[str] = None, 
-                context_name: Optional[str] = None):
+                context_name: Optional[str] = None,
+                thought_output: Optional[asyncio.Queue] = None,
+                thought_max_epoch: Optional[int] = 30):
         
         self.client = OpenAIClient(api_key, base_url, model)
         self.tools_manager = get_tool_registry()
@@ -32,10 +35,9 @@ class Agent:
         self.system_prompt = system_prompt
 
         self.memory = Memory("history", load_path, system_prompt, context_name)
-    
+        self.thought_output = thought_output
 
-        
-        self.max_epoch = 20
+        self.max_epoch = thought_max_epoch
 
     async def close(self):
         if not self.memory.save_all():
@@ -46,27 +48,37 @@ class Agent:
     
     async def response(self, usr_msg: str, context_id: str, thinking: bool = False, thinking_effor: str = "High"):
 
-        now_context = self.memory.get_context(context_id)
-        if now_context is None:
+
+        if context_id not in self.memory.list_contexts():
             return "错误id"
-        
-        now_context.append(Message(role="user", content=usr_msg))
+        messages = self.memory.get_context(context_id).messages
+        self.memory.append(context_id, Message(role="user", content=usr_msg))
 
         step = 0
         while step < self.max_epoch:
             # 获取模型响应
             response = self.client.create_chat_completion(
-                messages=now_context.messages, # self.context.message 返回完整列表
+                messages=messages, # self.context.message 返回完整列表
                 tools=self.tools_manager.get_tool_definitions(),
                 thinking=thinking,
                 thinking_effor=thinking_effor
             )
             
             response_message = response["choices"][0]["message"]
-
+            await self._handle_message(response_message, context_id)
+            
+            '''
             msg = self.get_Message(response_message)
 
             now_context.append(Message(**msg))
+
+            if self.thought_output is not None and msg['content'] != "":
+                await self.thought_output.put(TransportMessage(
+                context_id=context_id,
+                output_id="",
+                content=msg.get('content')
+            ))
+            '''
 
             '''
             now_context.append(Message(
@@ -81,6 +93,7 @@ class Agent:
                 # print_message(now_context.messages, response, 'p') 
                 break
 
+
             # 执行工具调用
             tool_results = await self._execute_tool_calls(response_message["tool_calls"])
             
@@ -92,30 +105,33 @@ class Agent:
                 if isinstance(result, list) and len(result) > 0 and isinstance(result[0], types.TextContent):
                     format_result = result[0].model_dump()
                 
-                now_context.append(Message(
+                self.memory.append(context_id, Message(
                     role="tool",
                     content=json.dumps(format_result),
                     tool_call_id=tool_call["id"]
                 ))
             
             step += 1
-            print_message(now_context.messages, response, 't') # 打印当前轨迹
+            print_message(messages, response, 't') # 打印当前轨迹
 
         # 超过最大轮数强制总结
         if step >= self.max_epoch and response_message.get("tool_calls"):
             print("the max arrived")
-            now_context.append(Message(role="system", content="已达到工具调用上限，请根据现有信息直接回答。"))
+            self.memory.append(context_id, Message(
+                role="system", 
+                content="已达到工具调用上限，请根据现有信息直接回答。"))
+            
             final_response = self.client.create_chat_completion(
-                messages=now_context.messages,                 
+                messages=messages,                 
                 thinking=thinking,
                 thinking_effor=thinking_effor)
             response_message = final_response["choices"][0]["message"]
-            msg = self.get_Message(response_message)
-            now_context.append(Message(**msg))
+
+            await self._handle_message(response_message, context_id, False)
 
         return response_message.get("content", "")
 
-    def get_Message(self, raw_message):
+    async def _handle_message(self, raw_message, context_id, thought_out = True):
         '''
         role = raw_message.get("role") or "assistant",
         content = raw_message.get("content") or ""
@@ -135,7 +151,17 @@ class Agent:
 
         if reasoning is not None:
             msg_kwargs["reasoning_content"] = reasoning
-        return msg_kwargs
+
+        self.memory.append(context_id, Message(**msg_kwargs))
+
+        if self.thought_output is not None and msg_kwargs['content'] != "" and raw_message.get("tool_calls") is not None and thought_out:
+            await self.thought_output.put(TransportMessage(
+            context_id=context_id,
+            output_id="",
+            content=msg_kwargs.get('content')
+        ))
+
+
     
     
     async def _execute_tool_calls(self, tool_calls: List[Dict]) -> List[tuple]:

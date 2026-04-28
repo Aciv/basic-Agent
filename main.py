@@ -91,14 +91,11 @@ if __name__ == "__main__":
         # 初始化agent
         system_prompt = make_system_prompt(system_context_path, skills_dir)
         agent = Agent(key, base_url, model, 
-                    system_prompt=system_prompt, context_name=stdin_ch.get_name())
+                    system_prompt=system_prompt, context_name=stdin_ch.get_name(),
+                    thought_output=std_output_queue)
         
         # 加载MCP服务器
         await get_mcp_server(mcp_path)
-
-
-
-
 
         timer = get_timer(input_queue)
         timer_workers = asyncio.create_task(timer.run())

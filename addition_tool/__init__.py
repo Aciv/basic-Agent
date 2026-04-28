@@ -4,5 +4,11 @@ Additional tools module
 """
 
 from addition_tool.arxiv_tool import search_papers, get_paper_by_id, search_by_author
+from addition_tool.pdf_reader_tool import read_pdf, get_pdf_info
 
-__all__ = ['search_papers', 'get_paper_by_id', 'search_by_author']
+__all__ = ['search_papers', 
+           'get_paper_by_id',
+           'search_by_author',
+           'read_pdf', 
+           'get_pdf_info'
+          ]

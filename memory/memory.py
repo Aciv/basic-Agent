@@ -132,6 +132,13 @@ class Base_Memory(ABC):
         self.path = path
         self.contexts: Dict[str, Context] = {}
     
+    def append(self, context_id:str, message: Message) -> bool:
+        if context_id in self.contexts.keys():
+            self.contexts.get(context_id).append(message)
+            return True
+        return False
+
+
     @abstractmethod
     def save(self, context_id: str) -> bool:
         """
@@ -173,6 +180,9 @@ class Base_Memory(ABC):
             
         Returns: 新创建的上下文
         """
+        if context_id in self.contexts:
+            self.reset_context(context_id)
+
         context = Context(system_prompt=system_prompt, context_id=context_id)
         self.contexts[context.context_id] = context
         return context.context_id
@@ -321,8 +331,10 @@ class Memory(Base_Memory):
             return False
         
         return context.trace_back(steps)
+    
     def reset(self):
         """重置Memory"""
+        self.save_all()
         self.contexts = {}
 
     def save_all(self) -> bool:

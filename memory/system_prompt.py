@@ -1,5 +1,4 @@
 
-from memory.memory import Message
 from memory.skills_load import load_skills
 
 def make_system_prompt(context_path, skills_dir):
@@ -16,8 +15,6 @@ def make_system_prompt(context_path, skills_dir):
 
 
     system_message = content="\n".join([content, skill_prompt])
-    
-
 
     return system_message
 
