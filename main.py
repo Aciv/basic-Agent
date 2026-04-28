@@ -103,7 +103,7 @@ if __name__ == "__main__":
         timer = get_timer(input_queue)
         timer_workers = asyncio.create_task(timer.run())
         workers = [asyncio.create_task(agent_worker(agent, input_queue, output_dict, i)) for i in range(1)]
-        # workers.append(timer_workers)
+        workers.append(timer_workers)
         try:
             await asyncio.gather(*workers)
         except  (asyncio.CancelledError,EOFError, KeyboardInterrupt):

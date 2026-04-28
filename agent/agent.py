@@ -22,7 +22,10 @@ def print_message(Message, response, splt = '-'):
 import inspect
 class Agent:
     def __init__(self, api_key: str, base_url : str, model: str = "qwen-plus",
-                 load_path: Optional[str] = None, system_prompt: Optional[str] = None, context_name: Optional[str] = None):
+                load_path: Optional[str] = None, 
+                system_prompt: Optional[str] = None, 
+                context_name: Optional[str] = None):
+        
         self.client = OpenAIClient(api_key, base_url, model)
         self.tools_manager = get_tool_registry()
 
@@ -62,8 +65,7 @@ class Agent:
             response_message = response["choices"][0]["message"]
 
             msg = self.get_Message(response_message)
-            print(msg)
-            
+
             now_context.append(Message(**msg))
 
             '''
@@ -101,6 +103,7 @@ class Agent:
 
         # 超过最大轮数强制总结
         if step >= self.max_epoch and response_message.get("tool_calls"):
+            print("the max arrived")
             now_context.append(Message(role="system", content="已达到工具调用上限，请根据现有信息直接回答。"))
             final_response = self.client.create_chat_completion(
                 messages=now_context.messages,                 
@@ -123,10 +126,10 @@ class Agent:
         msg_kwargs = {
             "role": raw_message.get("role") or "assistant",
             "content": raw_message.get("content") or "",
-            "tool_calls": raw_message.get("tool_calls") or None, 
-            "annotations": raw_message.get("annotations") or None, 
-            "audio": raw_message.get("audio") or None,
-            "function_call": raw_message.get("function_call") or None,            
+            "tool_calls": raw_message.get("tool_calls"), 
+            "annotations": raw_message.get("annotations"), 
+            "audio": raw_message.get("audio"),
+            "function_call": raw_message.get("function_call"),            
         }
 
 

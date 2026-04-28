@@ -10,13 +10,13 @@ class OpenAIClient:
     def __init__(self, api_key: str, base_url : str, model: str = "qwen-plus"):
         self.client = openai.OpenAI(api_key=api_key, base_url=base_url)
         self.model = model
+        self.temperature = 0.7
+        self.max_tokens = None
         
     def create_chat_completion(
         self,
         messages: List[Message],
         tools: Optional[List[Dict]] = None,
-        temperature: float = 0.7,
-        max_tokens: Optional[int] = None,
         thinking: bool = False, 
         thinking_effor: str = "High"
     ) -> Dict[str, Any]:
@@ -40,8 +40,8 @@ class OpenAIClient:
                 model=self.model,
                 messages=openai_messages,
                 tools=tools,
-                temperature=temperature,
-                max_tokens=max_tokens,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
                 reasoning_effort="high",
                 extra_body={"thinking": {"type": "enabled"}}
             )
@@ -51,8 +51,8 @@ class OpenAIClient:
                 model=self.model,
                 messages=openai_messages,
                 tools=tools,
-                temperature=temperature,
-                max_tokens=max_tokens,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
                 extra_body={"thinking": {"type": "disabled"}}
             )
 

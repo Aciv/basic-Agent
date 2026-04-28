@@ -15,11 +15,11 @@ class Message:
     tool_calls: Optional[List[Dict]] = None
     tool_call_id: Optional[str] = None
     reasoning_content: Optional[str] = None
-    refusal: Optional[str] = None,
-    annotations: Optional[str] = None,
-    audio: Optional[str] = None,
-    function_call: Optional[str] = None,
-    
+    refusal: Optional[str] = None
+    annotations: Optional[str] = None
+    audio: Optional[str] = None
+    function_call: Optional[str] = None
+
     def to_dict(self) -> Dict:
         """转换为字典格式"""
         return asdict(self)
@@ -197,6 +197,22 @@ class Base_Memory(ABC):
         """
         return list(self.contexts.keys())
     
+    def reset_context(self, context_id: str) -> bool:
+        """
+        重置指定上下文
+        
+        :param context_id: 上下文ID
+            
+        Returns:
+            删除是否成功
+        """
+        if context_id in self.contexts:
+            self.save(context_id)
+            self.contexts[context_id].clear()
+            return True
+        
+        return False
+
     def delete_context(self, context_id: str) -> bool:
         """
         删除指定上下文
@@ -242,10 +258,10 @@ class Memory(Base_Memory):
     def _generate_filename(self, context_id: str) -> str:
         """根据上下文ID和时间生成文件名"""
 
-        day = str(date.today())
-        os.makedirs(os.path.join(self.path,day), exist_ok=True)
+        # day = str(date.today())
+        os.makedirs(os.path.join(self.path, context_id), exist_ok=True)
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        return os.path.join(day, f"{timestamp}_{context_id}.json")
+        return os.path.join(context_id, f"{timestamp}.json")
     
     def save(self, context_id: str) -> bool:
         """
@@ -257,8 +273,6 @@ class Memory(Base_Memory):
             保存是否成功
         """
         try:
-
-            
             # 生成文件名
             filename = self._generate_filename(context_id)
             filepath = os.path.join(self.path, filename)
