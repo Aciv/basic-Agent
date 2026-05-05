@@ -23,26 +23,21 @@ class ToolInfo:
 from mcp_loader.mcp_client import MCPClient
 
 class OpenAiToolRegistry:
-    """工具注册器"""
-    
-    def __init__(self, timeout=30):
+    def __init__(self, timeout=180):
         self._tools: Dict[str, ToolInfo] = {}
         self.clients: Dict[str, MCPClient] = {}
         self.timeout = timeout
 
     def register(self, tool_info: ToolInfo):
-        """注册工具"""
         self._tools[tool_info.name] = tool_info
     
     def get_tool(self, name: str) -> Optional[ToolInfo]:
-        """获取工具"""
         return self._tools.get(name)
     
     def get_all_tools(self) -> Dict[str, ToolInfo]:
-        """获取所有工具"""
         return self._tools.copy()
+    
     async def add_client(self, name: str, timeout: int, transport: str, **transport_params):
-        """添加MCP客户端"""
         if name in self.clients:
             return self.clients[name]
         
@@ -113,13 +108,11 @@ _tool_registry = OpenAiToolRegistry()
 
 
 def get_tool_registry() -> OpenAiToolRegistry:
-    """获取全局工具注册器"""
     return _tool_registry
 
 
 
 def extract_function_info(func: Callable) -> Dict[str, Any]:
-    """提取函数信息"""
     func_name = func.__name__
     docstring = inspect.getdoc(func) or ""
     
@@ -268,18 +261,7 @@ def tool(
             
       
         
-        # 创建工具信息
-        tool_info = ToolInfo(
-            name=tool_name,
-            description=tool_description,
-            func=func,
-            args_schema=schema_model,
-            parameters=parameters,
-            required_params=required_params
-        )
-        
-        # 注册工具
-        _tool_registry.register(tool_info)
+
 
         timeout_seconds = _tool_registry.timeout
         if timeout_seconds is None:
@@ -297,17 +279,20 @@ def tool(
             # 统一用 asyncio.wait_for 包装
             try:
                 if inspect.iscoroutinefunction(func):
+                    # print(f"asyn start wait for {timeout_seconds}")
                     return await asyncio.wait_for(
                         func(*args, **validated_kwargs),
                         timeout=timeout_seconds
                     )
                 else:
                     # 同步函数在线程池中执行，再用 wait_for 限制总时间
+                    # print(f"sync start wait for {timeout_seconds}")
                     return await asyncio.wait_for(
                         asyncio.to_thread(func, *args, **validated_kwargs),
                         timeout=timeout_seconds
                     )
             except asyncio.TimeoutError:
+                # print("time out")
                 return {
                     "success": False,
                     "message": f"Tool execution timed out after {timeout_seconds} seconds",
@@ -316,8 +301,20 @@ def tool(
             except Exception as e:
                 # 保持原异常抛出
                 raise e
+            
+        # 创建工具信息
+        tool_info = ToolInfo(
+            name=tool_name,
+            description=tool_description,
+            func=wrapper,
+            args_schema=schema_model,
+            parameters=parameters,
+            required_params=required_params
+        )
+        
+        # 注册工具
+        _tool_registry.register(tool_info)
 
-        wrapper.tool_info = tool_info
         return wrapper
     
     # 处理 @tool 不带括号的情况
