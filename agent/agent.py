@@ -12,7 +12,7 @@ printer = LogPrinter()
 
 
 def print_message(Message, response, splt = '-'):
-    return
+    # return
     printer.print(splt*50)
     printer.print(Message)
     printer.print("---------------------- response is ----------------------")
@@ -23,18 +23,24 @@ def print_message(Message, response, splt = '-'):
 import inspect
 class Agent:
     def __init__(self, api_key: str, base_url : str, model: str = "qwen-plus",
+                limit_policy: Optional[callable] = None, 
                 load_path: Optional[str] = None, 
                 system_prompt: Optional[str] = None, 
                 context_name: Optional[str] = None,
                 thought_output: Optional[asyncio.Queue] = None,
-                thought_max_epoch: Optional[int] = 30):
+                thought_max_epoch: Optional[int] = 30,
+                context_max_size: int = 1000):
         
         self.client = OpenAIClient(api_key, base_url, model)
         self.tools_manager = get_tool_registry()
 
-        self.system_prompt = system_prompt
+        self.limit_policy = limit_policy
 
-        self.memory = Memory("history", load_path, system_prompt, context_name)
+        self.system_prompt = system_prompt
+        
+        self.memory = Memory(path="history", load_path=load_path, 
+                             max_context_size = context_max_size,
+                            system_prompt=system_prompt, context_name=context_name)
         self.thought_output = thought_output
 
         self.max_epoch = thought_max_epoch
@@ -48,17 +54,27 @@ class Agent:
     
     async def response(self, usr_msg: str, context_id: str, thinking: bool = False, thinking_effor: str = "High"):
 
-
         if context_id not in self.memory.list_contexts():
-            return "错误id"
-        messages = self.memory.get_context(context_id).messages
+            return "wrong id"
+        
+        context = self.memory.get_context(context_id)
+        if context.count >= self.memory.max_context_size:
+            # print("touch the max fuck you oh!!!!!!!!")
+            self.memory.save(context_id)
+            context.reset()
+
+
+        if self.limit_policy is not None:
+            self.limit_policy(context)
+
+
         self.memory.append(context_id, Message(role="user", content=usr_msg))
 
         step = 0
         while step < self.max_epoch:
-            # 获取模型响应
+
             response = self.client.create_chat_completion(
-                messages=messages, # self.context.message 返回完整列表
+                messages=context.messages, 
                 tools=self.tools_manager.get_tool_definitions(),
                 thinking=thinking,
                 thinking_effor=thinking_effor
@@ -88,7 +104,7 @@ class Agent:
                 reasoning_content=response_message.get("reasoning_content"),
             ))
             '''
-            # 如果没有工具调用，直接跳出循环
+
             if not response_message.get("tool_calls"):
                 # print_message(now_context.messages, response, 'p') 
                 break
@@ -112,7 +128,7 @@ class Agent:
                 ))
             
             step += 1
-            print_message(messages, response, 't') # 打印当前轨迹
+            print_message(context.messages, response, 't') # 打印当前轨迹
 
         # 超过最大轮数强制总结
         if step >= self.max_epoch and response_message.get("tool_calls"):
@@ -122,12 +138,14 @@ class Agent:
                 content="已达到工具调用上限，请根据现有信息直接回答。"))
             
             final_response = self.client.create_chat_completion(
-                messages=messages,                 
+                messages=context.messages,                 
                 thinking=thinking,
                 thinking_effor=thinking_effor)
             response_message = final_response["choices"][0]["message"]
 
             await self._handle_message(response_message, context_id, False)
+
+
 
         return response_message.get("content", "")
 
@@ -171,6 +189,9 @@ class Agent:
         for tool_call in tool_calls:
             tool_name = tool_call["function"]["name"]
             arguments = json.loads(tool_call["function"]["arguments"])
+            
+            printer.print(f"tool {tool_name} is calliing")
+            printer.print(arguments)
             
             tool = self.tools_manager.get_tool(tool_name)
             if tool:

@@ -8,7 +8,7 @@ from IO.channel_base import TransportMessage
 
 class MinHeapTimer:
     def __init__(self, input_queue: asyncio.Queue):
-        self.input_queue = input_queue
+        self._input_queue = input_queue
 
         # 堆: (执行时间, 任务名称，序列号, TransportMessage)
         self._task_queue = []          
@@ -73,7 +73,7 @@ class MinHeapTimer:
                         pass
                     
             if task_to_send is not None:
-                await self.input_queue.put(task_to_send)
+                await self._input_queue.put(task_to_send)
 
     def get_info(self):
         return self._task_queue.copy()
@@ -94,4 +94,3 @@ def get_timer(input_queue: Optional[asyncio.Queue] = None) -> MinHeapTimer:
     if _timer_instance is None:
         _timer_instance = MinHeapTimer(input_queue)
     return _timer_instance
-

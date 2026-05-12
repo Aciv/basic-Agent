@@ -21,7 +21,7 @@ from tool.tools import tool
 
 
 # 缓存目录
-CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "automate_output")
+CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "automate_output", "download_pdf")
 
 
 def _ensure_cache_dir():

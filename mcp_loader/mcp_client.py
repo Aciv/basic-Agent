@@ -12,11 +12,7 @@ logging.basicConfig(level=logging.WARN, format="%(asctime)s - %(levelname)s - %(
 
 
 
-# 强制不对本地地址使用代理
 os.environ["NO_PROXY"] = "localhost,127.0.0.1"
-# 或者干脆清空代理（如果不需要访问外网）
-# os.environ.pop("HTTP_PROXY", None)
-# os.environ.pop("HTTPS_PROXY", None)
 
 
 class MCPClient:
