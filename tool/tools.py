@@ -299,10 +299,8 @@ def tool(
                     "error": "TimeoutError"
                 }
             except Exception as e:
-                # 保持原异常抛出
                 raise e
             
-        # 创建工具信息
         tool_info = ToolInfo(
             name=tool_name,
             description=tool_description,

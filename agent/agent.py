@@ -1,6 +1,6 @@
 from agent.calls import OpenAIClient
 from typing import Dict, List, Optional
-from memory.memory import Message, Memory
+from memory.memory import Message, Memory, Context
 from IO.channel_base import TransportMessage
 import asyncio
 from tool.tools import get_tool_registry
@@ -50,7 +50,9 @@ class Agent:
             print("save failed")
         await self.tools_manager.cleanup_all()
 
-    
+
+
+
     
     async def response(self, usr_msg: str, context_id: str, thinking: bool = False, thinking_effor: str = "High"):
 
@@ -65,7 +67,7 @@ class Agent:
 
 
         if self.limit_policy is not None:
-            self.limit_policy(context)
+            self.limit_policy(self.client, context)
 
 
         self.memory.append(context_id, Message(role="user", content=usr_msg))

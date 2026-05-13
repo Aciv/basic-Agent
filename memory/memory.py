@@ -58,6 +58,13 @@ class Context:
     def get_current_len(self):
         return len(self.message_list) - self.read_pos
 
+    def map_type_to_size(self, type:str):
+        if type == 'str':
+            return self.current_prompt_len
+        else:
+            return self.get_current_len()
+        
+
     def append(self, message: Message):
         self.message_list.append(message)
         self.current_prompt_len += len(message.content)

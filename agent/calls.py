@@ -42,7 +42,7 @@ class OpenAIClient:
                 tools=tools,
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
-                reasoning_effort="high",
+                reasoning_effort=thinking_effor,
                 extra_body={"thinking": {"type": "enabled"}}
             )
         else:

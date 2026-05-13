@@ -19,7 +19,7 @@ from timer_schedule import get_timer
 
 import addition_tool
 from memory.system_prompt import make_system_prompt
-from middle.limit_policy import truncate_policy
+from middle.limit_policy import truncate_policy, summarize_policy, simple_response
 
 
 
@@ -92,7 +92,7 @@ if __name__ == "__main__":
         # 初始化agent
         system_prompt = make_system_prompt(system_context_path, skills_dir)
         agent = Agent(key, base_url, model, 
-                    limit_policy=truncate_policy(truncated_limit=200),
+                    limit_policy=summarize_policy(summarize_agent=simple_response, summarized_limit=200),
                     context_max_size=1000,
                     system_prompt=system_prompt, context_name=stdin_ch.get_name(),
                     thought_output=std_output_queue)
