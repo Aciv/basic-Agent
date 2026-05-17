@@ -10,38 +10,51 @@ class TransportMessage:
     context_id: str
     output_id: str
     content: Optional[str] = None
+    request_id: str = ""
 
 
 
 class InputChannel(ABC):
-    """输入通道基类：从某个数据源读取原始数据，放入输入队列"""
-
     def __init__(self, input_queue: asyncio.Queue, 
-                output_name: Optional[str] = "Stdout", error_name: Optional[str] = "Stdout", name: str = "InputChannel",
-                semaphore: Optional[asyncio.Semaphore] = None):
+                output_name: Optional[str] = "Stdout", 
+                error_name: Optional[str] = "Stdout", 
+                name: str = "InputChannel",
+                semaphore: Optional[asyncio.Semaphore] = None,
+                poll_interval: Optional[float] = None):
+        """
+        :param poll_interval: 轮询间隔（秒）。为 None 时表示阻塞读取（如 stdin），
+                               有值时表示非阻塞轮询，无消息时等待指定间隔再重试。
+        """
         self.input_queue = input_queue
         self.name = name
         self.output_name = output_name
         self.error_output = error_name
 
         self.semaphore = semaphore
+        self.poll_interval = poll_interval
 
         self._task: Optional[asyncio.Task] = None
         self._running = False
 
     @abstractmethod
-    async def _read(self) -> TransportMessage:
+    async def _read(self) -> Optional[TransportMessage]:
+        """
+        从数据源读取一条消息。
+        返回 None 表示暂无消息（轮询模式下会等待 poll_interval 后重试）。
+        """
         raise NotImplementedError
 
     async def _run(self):
         while self._running:
             try:
                 data = await self._read()
-                if data is None:          
+                if data is None:
+                    if self.poll_interval is not None:
+                        await asyncio.sleep(self.poll_interval)
                     continue
 
                 await self.input_queue.put(data)
-
+                
                 if self.semaphore is not None:
                     await self.semaphore.acquire()
             except (asyncio.CancelledError,EOFError, KeyboardInterrupt):
@@ -51,6 +64,7 @@ class InputChannel(ABC):
                         context_id=self.name,
                         output_id=self.error_output,
                         content=str(e)))
+                
     def get_name(self) -> str:
         return self.name
     def start(self):

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chat</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: sans-serif; background: #f5f5f5; display: flex; justify-content: center; padding: 40px; }
+  #app { width: 600px; background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); overflow: hidden; display: flex; flex-direction: column; height: 80vh; }
+  #header { background: #4a90d9; color: #fff; padding: 16px 20px; font-size: 18px; font-weight: bold; }
+  #messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .msg { padding: 10px 14px; border-radius: 8px; max-width: 80%; line-height: 1.5; white-space: pre-wrap; }
+  .user { background: #4a90d9; color: #fff; align-self: flex-end; }
+  .bot { background: #e8e8e8; color: #333; align-self: flex-start; }
+  .error { background: #ffe0e0; color: #c00; align-self: flex-start; }
+  #input-area { display: flex; border-top: 1px solid #ddd; padding: 12px; gap: 8px; }
+  #input { flex: 1; padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; outline: none; }
+  #input:focus { border-color: #4a90d9; }
+  #send { padding: 10px 20px; background: #4a90d9; color: #fff; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
+  .bot p { margin: 4px 0; }
+  .bot ul, .bot ol { margin: 4px 0; padding-left: 20px; }
+  .bot code { background: #d0d0d0; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+  .bot pre { background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: 8px; overflow-x: auto; margin: 8px 0; }
+  .bot pre code { background: none; padding: 0; color: inherit; }
+  .bot table { border-collapse: collapse; margin: 8px 0; width: 100%; }
+  .bot th, .bot td { border: 1px solid #bbb; padding: 6px 10px; text-align: left; }
+  .bot th { background: #d0d0d0; }
+  .bot blockquote { border-left: 3px solid #4a90d9; margin: 4px 0; padding: 2px 10px; color: #555; }
+  #send:disabled { background: #aaa; cursor: not-allowed; }
+  .loading { text-align: center; color: #999; padding: 8px; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+<div id="app">
+  <div id="header">Chat</div>
+  <div id="messages"></div>
+  <div id="input-area">
+    <input id="input" type="text" placeholder="输入消息..." autofocus>
+    <button id="send">发送</button>
+  </div>
+</div>
+<script>
+const messagesEl = document.getElementById('messages')
+const inputEl = document.getElementById('input')
+const sendBtn = document.getElementById('send')
+let loading = false
+let sendMsg = null
+
+function addMsg(text, type) {
+  const el = document.createElement('div')
+  el.className = 'msg ' + type
+  if (type === 'bot') {
+    el.innerHTML = marked.parse(text)
+  } else {
+    el.textContent = text
+  }
+  messagesEl.appendChild(el)
+  messagesEl.scrollTop = messagesEl.scrollHeight
+}
+
+const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+const wsUrl = proto + '//' + window.location.host + '/api/ws'
+
+let ws = new WebSocket(wsUrl)
+ws.onopen = () => addMsg('WebSocket 已连接', 'bot')
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data)
+  if (data.type === 'connected') {
+    window._sessionId = data.session_id
+    return
+  }
+  const loadEl = document.querySelector('.loading')
+  if (loadEl) loadEl.remove()
+  loading = false
+  sendBtn.disabled = false
+  addMsg(data.response, 'bot')
+}
+ws.onerror = () => {
+  // WebSocket 失败，尝试 SSE
+  addMsg('WebSocket 不可用，尝试 SSE...', 'bot')
+  ws = null
+  const es = new EventSource('/api/sse')
+  es.onmessage = (event) => {
+    const data = JSON.parse(event.data)
+    if (data.type === 'connected') {
+      window._sessionId = data.session_id
+      sendMsg = (msg) => {
+        fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: msg, session_id: window._sessionId })
+        }).catch(() => {})
+      }
+      return
+    }
+    const loadEl = document.querySelector('.loading')
+    if (loadEl) loadEl.remove()
+    loading = false
+    sendBtn.disabled = false
+    addMsg(data.response, 'bot')
+  }
+  es.onerror = () => addMsg('SSE 连接失败', 'error')
+}
+
+sendBtn.onclick = () => {
+  const msg = inputEl.value.trim()
+  if (!msg || loading) return
+  inputEl.value = ''
+  addMsg(msg, 'user')
+  loading = true
+  sendBtn.disabled = true
+  const loadEl = document.createElement('div')
+  loadEl.className = 'loading'
+  loadEl.textContent = '正在思考...'
+  messagesEl.appendChild(loadEl)
+
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ message: msg }))
+  } else if (sendMsg) {
+    sendMsg(msg)
+  } else {
+    loadEl.remove()
+    addMsg('未连接到服务器', 'error')
+    loading = false
+    sendBtn.disabled = false
+  }
+}
+
+inputEl.onkeydown = e => { if (e.key === 'Enter') sendBtn.click() }
+</script>
+</body>
+</html>

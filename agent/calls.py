@@ -5,8 +5,7 @@ from memory.memory import Message
 
 
 class OpenAIClient:
-    """OpenAI LLM 客户端封装"""
-    
+
     def __init__(self, api_key: str, base_url : str, model: str = "qwen-plus"):
         self.client = openai.OpenAI(api_key=api_key, base_url=base_url)
         self.model = model
@@ -20,7 +19,7 @@ class OpenAIClient:
         thinking: bool = False, 
         thinking_effor: str = "High"
     ) -> Dict[str, Any]:
-        """创建聊天完成"""
+
         # 转换消息格式
         openai_messages = []
         for msg in messages:
@@ -34,6 +33,7 @@ class OpenAIClient:
                 message_dict["tool_call_id"] = msg.tool_call_id
             '''
             openai_messages.append(msg.to_dict())
+        print("thinking~")
         if thinking:
             # 调用 OpenAI API
             response = self.client.chat.completions.create(
@@ -47,6 +47,7 @@ class OpenAIClient:
             )
         else:
             # 调用 OpenAI API
+            
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=openai_messages,
@@ -56,6 +57,6 @@ class OpenAIClient:
                 extra_body={"thinking": {"type": "disabled"}}
             )
 
-        
+        print("thinking ok~")
         return response.model_dump()
 

@@ -12,7 +12,7 @@ printer = LogPrinter()
 
 
 def print_message(Message, response, splt = '-'):
-    # return
+ 
     printer.print(splt*50)
     printer.print(Message)
     printer.print("---------------------- response is ----------------------")
@@ -28,7 +28,7 @@ class Agent:
                 system_prompt: Optional[str] = None, 
                 context_name: Optional[str] = None,
                 thought_output: Optional[asyncio.Queue] = None,
-                thought_max_epoch: Optional[int] = 30,
+                thought_max_epoch: Optional[int] = 50,
                 context_max_size: int = 1000):
         
         self.client = OpenAIClient(api_key, base_url, model)
@@ -57,7 +57,7 @@ class Agent:
     async def response(self, usr_msg: str, context_id: str, thinking: bool = False, thinking_effor: str = "High"):
 
         if context_id not in self.memory.list_contexts():
-            return "wrong id"
+            self.memory.create_context(context_id=context_id, system_prompt=self.memory.system_prompt)
         
         context = self.memory.get_context(context_id)
         if context.count >= self.memory.max_context_size:
@@ -113,6 +113,7 @@ class Agent:
 
 
             # 执行工具调用
+
             tool_results = await self._execute_tool_calls(response_message["tool_calls"])
             
             # 逐个添加工具执行结果
@@ -130,7 +131,7 @@ class Agent:
                 ))
             
             step += 1
-            print_message(context.messages, response, 't') # 打印当前轨迹
+            # print_message(context.messages, response, 't') # 打印当前轨迹
 
         # 超过最大轮数强制总结
         if step >= self.max_epoch and response_message.get("tool_calls"):
@@ -150,6 +151,7 @@ class Agent:
 
 
         return response_message.get("content", "")
+
 
     async def _handle_message(self, raw_message, context_id, thought_out = True):
         '''
@@ -185,25 +187,32 @@ class Agent:
     
     
     async def _execute_tool_calls(self, tool_calls: List[Dict]) -> List[tuple]:
-        """执行工具调用"""
-        results = []
-        
-        for tool_call in tool_calls:
-            tool_name = tool_call["function"]["name"]
-            arguments = json.loads(tool_call["function"]["arguments"])
-            
-            printer.print(f"tool {tool_name} is calliing")
-            printer.print(arguments)
-            
-            tool = self.tools_manager.get_tool(tool_name)
-            if tool:
-                if inspect.iscoroutinefunction(tool.func):
-                    result = await tool.func(**arguments)
-                else:
-                    result = tool.func(**arguments)
 
-                results.append((tool_call, result))
-            else:
-                results.append(f"tool {tool_name} not exist")
-            
+        results = []
+
+        for tool_call in tool_calls:
+            try: 
+                tool_name = tool_call["function"]["name"]
+                printer.print(f"tool {tool_name} is calliing")
+
+
+                
+                arguments = json.loads(tool_call["function"]["arguments"])
+                
+
+                
+                tool = self.tools_manager.get_tool(tool_name)
+                if tool:
+                    if inspect.iscoroutinefunction(tool.func):
+                        result = await tool.func(**arguments)
+                    else:
+                        result = tool.func(**arguments)
+
+                    results.append((tool_call, result))
+                else:
+                    results.append(f"tool {tool_name} not exist")
+            except Exception as e:
+                result.append(f"{tool_name} runtine wrong {e}")
+
+            #print(f"{tool_name} is returned")
         return results

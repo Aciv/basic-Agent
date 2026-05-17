@@ -25,12 +25,10 @@ CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 
 
 def _ensure_cache_dir():
-    """确保缓存目录存在"""
     os.makedirs(CACHE_DIR, exist_ok=True)
 
 
 def _is_url(path: str) -> bool:
-    """判断是否为URL"""
     try:
         result = urlparse(path)
         return result.scheme in ('http', 'https')
@@ -39,9 +37,10 @@ def _is_url(path: str) -> bool:
 
 
 def _url_to_cache_path(url: str) -> str:
-    """将URL转换为本地缓存文件路径"""
+
     # 使用URL的哈希作为文件名,避免文件名冲突
     url_hash = hashlib.md5(url.encode('utf-8')).hexdigest()
+
     # 从URL中提取原始文件名(如果有)
     parsed = urlparse(url)
     original_name = os.path.basename(parsed.path)
@@ -94,19 +93,16 @@ async def _get_pdf_bytes(source: str, timeout: int = 30) -> tuple:
 
 
 def _read_file_sync(path: str) -> bytes:
-    """同步读取文件(用于 asyncio.to_thread)"""
     with open(path, "rb") as f:
         return f.read()
 
 
 def _write_file_sync(path: str, data: bytes):
-    """同步写入文件(用于 asyncio.to_thread)"""
     with open(path, "wb") as f:
         f.write(data)
 
 
 def _extract_text_from_pdf(pdf_bytes: bytes) -> str:
-    """使用PyMuPDF从PDF字节数据中提取全部文本"""
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     full_text = []
     for page_num in range(len(doc)):
@@ -118,7 +114,6 @@ def _extract_text_from_pdf(pdf_bytes: bytes) -> str:
 
 
 def _split_text_into_chunks(text: str, chunk_size: int) -> list:
-    """将文本按指定大小分段,尽量在换行处分割"""
     if chunk_size <= 0:
         return [text]
 

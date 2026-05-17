@@ -5,12 +5,17 @@ from IO.channel_base import InputChannel, OutputChannel, TransportMessage
 
 class StdInChannel(InputChannel):
     def __init__(self, input_queue: asyncio.Queue, 
-                output_name: Optional[str] = "Stdout", error_name: Optional[str] = "Stdout", name: str = "Stdin",
-                prompt: str = ">>> ", semaphore: Optional[asyncio.Semaphore] = None):
+                output_name: Optional[str] = "Stdout", 
+                error_name: Optional[str] = "Stdout", 
+                name: str = "Stdin",
+                poll_interval: float = 0.5,
+                prompt: str = ">>> ", 
+                semaphore: Optional[asyncio.Semaphore] = None):
         super().__init__(input_queue=input_queue, output_name=output_name,
                          name=name, 
                          error_name=error_name,
-                         semaphore=semaphore)
+                         semaphore=semaphore,
+                         poll_interval=poll_interval)
         self.prompt = prompt
         self._read_task: Optional[asyncio.Future] = None  
 

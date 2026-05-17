@@ -1,0 +1,10 @@
+{
+    "agent_system_config" :{
+        "skills_dir": "skills",
+        "system_context_path": "content.txt",
+        "key": "sk-f85ace87ae9f4d758f295e7ff155198d",
+        "base_url": "https://api.deepseek.com", 
+        "model": "deepseek-v4-flash",
+        "mcp_path": "mcp_config.json"
+    }
+}

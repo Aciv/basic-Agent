@@ -25,7 +25,7 @@ def write_file(
     encoding: str = "utf-8"
 ) -> Dict[str, Any]:
     """
-    写入文件工具,将内容写入指定路径的文件。如果文件不存在则创建,如果存在则覆盖。
+    写入文件工具,将内容写入指定路径的文件。如果文件不存在则创建,如果存在则覆盖,一次写入的字符长度不超过3000字符。
     
     :param path: 文件路径,可以是相对路径或绝对路径
     :param content: 要写入文件的内容
@@ -36,7 +36,7 @@ def write_file(
         # 确保目录存在
         file_path = Path(path)
         file_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         # 写入文件
         with open(file_path, 'w', encoding=encoding) as f:
             f.write(content)
@@ -51,6 +51,45 @@ def write_file(
         return {
             "success": False,
             "message": f"写入文件失败: {str(e)}",
+            "path": path,
+            "error": str(e)
+        }
+
+
+@tool
+def append_file(
+    path: str,
+    content: str,
+    encoding: str = "utf-8"
+) -> Dict[str, Any]:
+    """
+    追加写入文件工具,将内容追加到指定路径的文件末尾。如果文件不存在则创建,一次写入的字符长度不超过3000字符。
+    
+    :param path: 文件路径,可以是相对路径或绝对路径
+    :param content: 要追加到文件的内容
+    :param encoding: 文件编码,默认为 utf-8
+    :return: 操作结果信息
+    """
+    try:
+        # 确保目录存在
+        file_path = Path(path)
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # 追加写入文件
+        with open(file_path, 'a', encoding=encoding) as f:
+            f.write(content)
+        
+        return {
+            "success": True,
+            "message": f"内容已成功追加到文件: {path}",
+            "path": str(file_path.absolute()),
+            "size": len(content),
+            "mode": "append"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"追加写入文件失败: {str(e)}",
             "path": path,
             "error": str(e)
         }
@@ -136,7 +175,7 @@ def modify_file(
     replace_all: bool = False
 ) -> Dict[str, Any]:
     """
-    修改文件工具,在文件中搜索指定模式并替换为新的内容。
+    修改文件工具,在文件中搜索指定模式并替换为新的内容,,一次写入的字符长度不超过1000字符。
     
     :param path: 文件路径,可以是相对路径或绝对路径
     :param search_pattern: 要搜索的文本模式
@@ -439,5 +478,6 @@ __all__ = [
     'modify_file',
     'execute_command',
     'list_files',
-    'file_info'
+    'file_info',
+    'append_file'
 ]

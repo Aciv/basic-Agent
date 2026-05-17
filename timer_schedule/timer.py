@@ -54,6 +54,7 @@ class MinHeapTimer:
                     await self._condition.wait()   
                     continue
                 # print("wtf")
+                
                 execute_time, _, task_id, message = self._task_queue[0]
                 now = time.time()
 
@@ -84,7 +85,7 @@ class MinHeapTimer:
             self._condition.notify()
 
             
-# 全局定时器实例
+
 _timer_instance: Optional[MinHeapTimer] = None
 
 

@@ -245,7 +245,7 @@ class Memory(Base_Memory):
         super().__init__(path, max_context_size)
         
         os.makedirs(self.path, exist_ok=True)
-        
+        self.system_prompt = system_prompt
         if load_path is not None:
             self.load(load_path)
         elif context_name is not None:

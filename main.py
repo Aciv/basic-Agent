@@ -92,7 +92,7 @@ if __name__ == "__main__":
         # 初始化agent
         system_prompt = make_system_prompt(system_context_path, skills_dir)
         agent = Agent(key, base_url, model, 
-                    limit_policy=summarize_policy(summarize_agent=simple_response, summarized_limit=200),
+                    limit_policy=summarize_policy(summarize_agent=simple_response, summarized_limit=100),
                     context_max_size=1000,
                     system_prompt=system_prompt, context_name=stdin_ch.get_name(),
                     thought_output=std_output_queue)
@@ -110,6 +110,7 @@ if __name__ == "__main__":
             print("\n检测到退出信号，正在清理资源...")
         finally:
             await stdin_ch.stop()
+            input_queue.task_done()
             await input_queue.join()
 
             await stdout_ch.stop()

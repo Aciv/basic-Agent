@@ -23,7 +23,7 @@ class ToolInfo:
 from mcp_loader.mcp_client import MCPClient
 
 class OpenAiToolRegistry:
-    def __init__(self, timeout=180):
+    def __init__(self, timeout=360):
         self._tools: Dict[str, ToolInfo] = {}
         self.clients: Dict[str, MCPClient] = {}
         self.timeout = timeout
@@ -84,7 +84,6 @@ class OpenAiToolRegistry:
     '''
 
     def get_tool_definitions(self) -> List[Dict]:
-        """获取所有工具定义（OpenAI 格式）"""
         definitions = []
         for tool_info in self._tools.values():
             definition = {
